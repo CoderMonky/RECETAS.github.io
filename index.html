@@ -1,143 +1,228 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guitar Tuner + Audio Test</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
-    <script src="https://unpkg.com/ml5@latest/dist/ml5.min.js"></script>
-    <style>
-        body { 
-            background-color: #121212; color: #00ffcc; 
-            font-family: 'Courier New', monospace; 
-            display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0;
-        }
-        .main-box {
-            border: 4px solid #00ffcc; background: #000;
-            padding: 15px; width: 90%; max-width: 350px;
-            box-shadow: 8px 8px 0px #333; text-align: center;
-        }
-        /* Visualizador de audio */
-        #canvas-container {
-            width: 100%; height: 100px; background: #111;
-            margin: 10px 0; border: 1px solid #333;
-        }
-        .note-display { font-size: 3.5rem; color: #fff; margin: 10px 0; }
-        .string-grid {
-            display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
-            margin-top: 15px; padding-top: 15px; border-top: 2px solid #333;
-        }
-        .string-btn {
-            background: transparent; border: 2px solid #00ffcc;
-            color: #00ffcc; padding: 12px 5px; font-weight: bold; cursor: pointer;
-        }
-        .string-btn.active { background: #ff00ff; color: #fff; border-color: #fff; }
-        #status { font-size: 0.7rem; color: #ff00ff; margin-bottom: 5px; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guitar Tuner Pro</title>
+
+<style>
+body { 
+    background-color: #121212; 
+    color: #00ffcc; 
+    font-family: 'Courier New', monospace; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    min-height: 100vh; 
+    margin: 0;
+}
+.main-box {
+    border: 4px solid #00ffcc;
+    background: #000;
+    padding: 20px;
+    width: 320px;
+    box-shadow: 10px 10px 0px #333;
+    text-align: center;
+}
+h1 { font-size: 1.5rem; }
+#status { font-size: 0.9rem; color: #888; margin-bottom: 10px; }
+
+.note-display { font-size: 4rem; margin: 10px 0; }
+.freq-display { color: #ff00ff; margin-bottom: 15px; }
+
+#meter {
+    width: 100%;
+    height: 15px;
+    background: #222;
+    position: relative;
+    margin: 15px 0;
+}
+#pointer {
+    width: 8px;
+    height: 100%;
+    background: #ff00ff;
+    position: absolute;
+    left: 50%;
+}
+.center-line {
+    position: absolute;
+    left: 50%;
+    width: 2px;
+    height: 100%;
+    background: #fff;
+}
+
+.string-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+.string-btn {
+    border: 2px solid #00ffcc;
+    background: transparent;
+    color: #00ffcc;
+    padding: 10px;
+    cursor: pointer;
+}
+.string-btn.active {
+    background: #ff00ff;
+    color: #fff;
+}
+
+.start-btn {
+    margin-bottom: 10px;
+    padding: 10px;
+    border: 2px solid #fff;
+    background: #000;
+    color: #fff;
+    cursor: pointer;
+}
+</style>
 </head>
+
 <body>
 
-    <div class="main-box">
-        <h2 style="font-size: 1.2rem;">TUNER & AUDIO TEST</h2>
-        
-        <div id="status">PULSA UNA CUERDA Y ACEPTA MICRÓFONO</div>
-        
-        <div id="canvas-container"></div>
+<div class="main-box">
+    <h1>GUITAR TUNER</h1>
+    <div id="status">Presioná iniciar</div>
 
-        <div class="note-display" id="current-note">--</div>
-        <div style="font-size: 1rem;"><span id="hz">0</span> Hz</div>
+    <button class="start-btn" onclick="startAudio()">INICIAR MIC</button>
 
-        <div class="string-grid">
-            <button class="string-btn" onclick="tuneString(0, this)">E6</button>
-            <button class="string-btn" onclick="tuneString(1, this)">A5</button>
-            <button class="string-btn" onclick="tuneString(2, this)">D4</button>
-            <button class="string-btn" onclick="tuneString(3, this)">G3</button>
-            <button class="string-btn" onclick="tuneString(4, this)">B2</button>
-            <button class="string-btn" onclick="tuneString(5, this)">e1</button>
-        </div>
+    <div class="note-display" id="current-note">--</div>
+    <div class="freq-display"><span id="hz">0</span> Hz</div>
+
+    <div id="meter">
+        <div class="center-line"></div>
+        <div id="pointer"></div>
     </div>
 
-    <script>
-        let audioCtx, pitch, stream, analyzer, dataArray;
-        let targetFreq = null;
-        const model_url = 'https://cdn.jsdelivr.net/gh/ml5js/ml5-data-and-models@main/models/pitch-detection/crepe/';
-        const strings = [
-            {n:'E', f:82.41}, {n:'A', f:110.00}, {n:'D', f:146.83},
-            {n:'G', f:196.00}, {n:'B', f:246.94}, {n:'e', f:329.63}
-        ];
+    <div class="string-grid">
+        <button class="string-btn" onclick="tuneString(0,this)">E</button>
+        <button class="string-btn" onclick="tuneString(1,this)">A</button>
+        <button class="string-btn" onclick="tuneString(2,this)">D</button>
+        <button class="string-btn" onclick="tuneString(3,this)">G</button>
+        <button class="string-btn" onclick="tuneString(4,this)">B</button>
+        <button class="string-btn" onclick="tuneString(5,this)">e</button>
+    </div>
+</div>
 
-        async function initAudio() {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            
-            // Configurar visualizador de onda
-            analyzer = audioCtx.createAnalyser();
-            const source = audioCtx.createMediaStreamSource(stream);
-            source.connect(analyzer);
-            analyzer.fftSize = 256;
-            dataArray = new Uint8Array(analyzer.frequencyBinCount);
+<script>
+let audioCtx;
+let analyser;
+let buffer;
+let targetFreq = null;
 
-            pitch = ml5.pitchDetection(model_url, audioCtx, stream, () => {
-                document.getElementById('status').innerText = "MODELO LISTO - TOCA LA CUERDA";
-                drawWave();
-                getPitch();
-            });
+const strings = [
+    { n: 'E', f: 82.41 },
+    { n: 'A', f: 110.00 },
+    { n: 'D', f: 146.83 },
+    { n: 'G', f: 196.00 },
+    { n: 'B', f: 246.94 },
+    { n: 'e', f: 329.63 }
+];
+
+async function startAudio() {
+    try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        await audioCtx.resume();
+
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const source = audioCtx.createMediaStreamSource(stream);
+
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
+
+        buffer = new Float32Array(analyser.fftSize);
+
+        source.connect(analyser);
+
+        document.getElementById("status").innerText = "🎤 Escuchando...";
+        updatePitch();
+
+    } catch (e) {
+        alert("Error mic: " + e.message);
+    }
+}
+
+function tuneString(index, btn) {
+    document.querySelectorAll('.string-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    targetFreq = strings[index].f;
+    document.getElementById('current-note').innerText = strings[index].n;
+}
+
+function autoCorrelate(buf, sampleRate) {
+    let SIZE = buf.length;
+    let rms = 0;
+
+    for (let i = 0; i < SIZE; i++) {
+        let val = buf[i];
+        rms += val * val;
+    }
+    rms = Math.sqrt(rms / SIZE);
+    if (rms < 0.01) return -1;
+
+    let r1 = 0, r2 = SIZE - 1;
+    for (let i = 0; i < SIZE / 2; i++) {
+        if (Math.abs(buf[i]) < 0.2) { r1 = i; break; }
+    }
+    for (let i = 1; i < SIZE / 2; i++) {
+        if (Math.abs(buf[SIZE - i]) < 0.2) { r2 = SIZE - i; break; }
+    }
+
+    buf = buf.slice(r1, r2);
+    SIZE = buf.length;
+
+    let c = new Array(SIZE).fill(0);
+    for (let i = 0; i < SIZE; i++) {
+        for (let j = 0; j < SIZE - i; j++) {
+            c[i] += buf[j] * buf[j + i];
         }
+    }
 
-        async function tuneString(index, btn) {
-            if (!audioCtx) await initAudio();
-            if (audioCtx.state === 'suspended') await audioCtx.resume();
+    let d = 0;
+    while (c[d] > c[d + 1]) d++;
 
-            document.querySelectorAll('.string-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            
-            targetFreq = strings[index].f;
-            document.getElementById('current-note').innerText = strings[index].n;
+    let maxval = -1, maxpos = -1;
+    for (let i = d; i < SIZE; i++) {
+        if (c[i] > maxval) {
+            maxval = c[i];
+            maxpos = i;
         }
+    }
 
-        function getPitch() {
-            pitch.getPitch((err, freq) => {
-                if (freq && targetFreq) {
-                    document.getElementById('hz').innerText = freq.toFixed(2);
-                }
-                getPitch();
-            });
+    let T0 = maxpos;
+    return sampleRate / T0;
+}
+
+function updatePitch() {
+    analyser.getFloatTimeDomainData(buffer);
+
+    let freq = autoCorrelate(buffer, audioCtx.sampleRate);
+
+    if (freq !== -1 && targetFreq) {
+        document.getElementById("hz").innerText = freq.toFixed(2);
+
+        let diff = freq - targetFreq;
+
+        let sensitivity = 10;
+        let pos = 50 + (diff * (50 / sensitivity));
+        pos = Math.max(5, Math.min(95, pos));
+        document.getElementById('pointer').style.left = pos + '%';
+
+        if (Math.abs(diff) < 1) {
+            document.getElementById('status').innerText = "✔ AFINADO";
+            document.getElementById('current-note').style.color = "#fff";
+        } else {
+            document.getElementById('status').innerText = diff < 0 ? "⬆ SUBIR" : "⬇ BAJAR";
+            document.getElementById('current-note').style.color = "#00ffcc";
         }
+    }
 
-        // Función para dibujar la onda de audio (Osciloscopio)
-        function drawWave() {
-            const container = document.getElementById('canvas-container');
-            if (container.innerHTML === "") {
-                const canvas = document.createElement('canvas');
-                canvas.width = container.clientWidth;
-                canvas.height = 100;
-                container.appendChild(canvas);
-            }
-            const canvas = container.querySelector('canvas');
-            const ctx = canvas.getContext('2d');
+    requestAnimationFrame(updatePitch);
+}
+</script>
 
-            function render() {
-                requestAnimationFrame(render);
-                analyzer.getByteTimeDomainData(dataArray);
-                ctx.fillStyle = '#000';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = '#00ffcc';
-                ctx.beginPath();
-                let sliceWidth = canvas.width / dataArray.length;
-                let x = 0;
-                for (let i = 0; i < dataArray.length; i++) {
-                    let v = dataArray[i] / 128.0;
-                    let y = v * canvas.height / 2;
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                    x += sliceWidth;
-                }
-                ctx.lineTo(canvas.width, canvas.height / 2);
-                ctx.stroke();
-            }
-            render();
-        }
-    </script>
 </body>
 </html>
